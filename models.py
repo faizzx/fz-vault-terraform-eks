@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 from sqlalchemy import Column, Integer, String, ForeignKey
 from database import Base
 
@@ -14,3 +15,12 @@ class Secret(Base):
     encrypted_value = Column(String)     # The actual secret
     encrypted_data_key = Column(String)  # The key needed to unlock the secret
     owner_id = Column(Integer, ForeignKey("users.id"))
+
+# --- Add these Pydantic Models for the API ---
+class UserCreate(BaseModel):
+    username: str
+    password: str
+
+class SecretCreate(BaseModel):
+    key_name: str
+    value: str
