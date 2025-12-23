@@ -38,3 +38,23 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+
+from sqlalchemy.orm import Session
+import models
+
+
+def authenticate_user(db: Session, username: str, password: str):
+    # 1. Look for the user in the database
+    user = db.query(models.User).filter(models.User.username == username).first()
+
+    # 2. If user doesn't exist, return False
+    if not user:
+        return False
+
+    # 3. Use our verify_password function to check the Argon2 hash
+    if not verify_password(password, user.hashed_password):
+        return False
+
+    # 4. If everything matches, return the user object
+    return user
