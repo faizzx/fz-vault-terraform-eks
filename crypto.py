@@ -1,4 +1,4 @@
-# crypto.py
+import boto3
 import os
 import base64
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -9,54 +9,67 @@ load_dotenv()
 
 class Vault:
     def __init__(self):
-        # This is your 'Master Key' from .env
-        master_key_hex = os.getenv("MASTER_KEY")
-        if not master_key_hex:
-            raise ValueError("MASTER_KEY missing in .env! Run 'openssl rand -hex 32' to get one.")
-        self.master_key = bytes.fromhex(master_key_hex)
+        # We now use the AWS KMS Key ARN instead of a hex string
+        self.kms_key_id = os.getenv("AWS_KMS_KEY_ID")
+        self.region = os.getenv("AWS_REGION", "us-east-1")
+
+        # Initialize the AWS KMS Client
+        self.kms_client = boto3.client('kms', region_name=self.region)
 
     def _get_aes_gcm(self, key: bytes):
         return AESGCM(key)
 
     def encrypt_secret(self, plaintext: str) -> dict:
         """
-        1. Generates a unique Data Key.
-        2. Encrypts the plaintext with the Data Key.
-        3. Encrypts the Data Key with the Master Key.
+        1. Asks AWS KMS to generate a new Data Key.
+        2. Encrypts the secret with the Plaintext Data Key.
+        3. Returns the Ciphertext and the ENCRYPTED Data Key (The Envelope).
         """
-        # Generate random 256-bit Data Key
-        data_key = AESGCM.generate_key(bit_length=256)
+        # Request a Data Key from AWS
+        response = self.kms_client.generate_data_key(
+            KeyId=self.kms_key_id,
+            KeySpec='AES_256'
+        )
 
-        # Encrypt the Secret Value
-        nonce_val = os.urandom(12)
-        cipher_val = self._get_aes_gcm(data_key).encrypt(nonce_val, plaintext.encode(), None)
+        plaintext_data_key = response['Plaintext']
+        encrypted_data_key = response['CiphertextBlob']  # This is the envelope
 
-        # Encrypt the Data Key (Envelope)
-        nonce_key = os.urandom(12)
-        cipher_key = self._get_aes_gcm(self.master_key).encrypt(nonce_key, data_key, None)
+        # Encrypt the actual value
+        nonce = os.urandom(12)
+        aesgcm = self._get_aes_gcm(plaintext_data_key)
+        ciphertext = aesgcm.encrypt(nonce, plaintext.encode(), None)
 
-        # Clean up sensitive key from memory
-        del data_key
+        # Security Best Practice: Explicitly wipe the plaintext key from memory
+        del plaintext_data_key
 
         return {
-            "ciphertext": base64.b64encode(nonce_val + cipher_val).decode(),
-            "encrypted_key": base64.b64encode(nonce_key + cipher_key).decode()
+            "ciphertext": base64.b64encode(nonce + ciphertext).decode(),
+            "encrypted_key": base64.b64encode(encrypted_data_key).decode()
         }
 
     def decrypt_secret(self, b64_ciphertext: str, b64_encrypted_key: str) -> str:
-        """Unlocks the Data Key using Master Key, then decrypts the secret."""
-        # 1. Unlock the Data Key
-        key_blob = base64.b64decode(b64_encrypted_key)
-        nonce_k, cipher_k = key_blob[:12], key_blob[12:]
-        data_key = self._get_aes_gcm(self.master_key).decrypt(nonce_k, cipher_k, None)
+        """
+        1. Sends the 'Envelope' back to AWS KMS to be decrypted.
+        2. Uses the returned Plaintext Data Key to unlock the secret.
+        """
+        encrypted_key_bytes = base64.b64decode(b64_encrypted_key)
 
-        # 2. Decrypt the value
-        val_blob = base64.b64decode(b64_ciphertext)
-        nonce_v, cipher_v = val_blob[:12], val_blob[12:]
-        plaintext = self._get_aes_gcm(data_key).decrypt(nonce_v, cipher_v, None)
+        # Ask AWS to decrypt the data key
+        response = self.kms_client.decrypt(
+            CiphertextBlob=encrypted_key_bytes,
+            KeyId=self.kms_key_id  # Optional but recommended for security
+        )
+
+        plaintext_data_key = response['Plaintext']
+
+        # Decrypt the ciphertext
+        raw_payload = base64.b64decode(b64_ciphertext)
+        nonce, cipher_v = raw_payload[:12], raw_payload[12:]
+
+        aesgcm = self._get_aes_gcm(plaintext_data_key)
+        plaintext = aesgcm.decrypt(nonce, cipher_v, None)
 
         return plaintext.decode()
 
 
-# Global instance
 vault = Vault()
