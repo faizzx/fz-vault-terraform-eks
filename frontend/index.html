@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>fz-creds Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans">
+
+    <div id="app" class="container mx-auto p-8 max-w-2xl">
+        <h1 class="text-3xl font-bold mb-8 text-blue-400">fz-creds-manager</h1>
+
+        <div id="login-section" class="bg-gray-800 p-6 rounded-lg shadow-xl">
+            <h2 class="text-xl mb-4">Login to Vault</h2>
+            <input id="username" type="text" placeholder="Username" class="w-full p-2 mb-3 bg-gray-700 rounded border border-gray-600">
+            <input id="password" type="password" placeholder="Password" class="w-full p-2 mb-4 bg-gray-700 rounded border border-gray-600">
+            <button onclick="login()" class="w-full bg-blue-600 hover:bg-blue-700 p-2 rounded font-bold transition">Unlock Vault</button>
+        </div>
+
+        <div id="dashboard-section" class="hidden space-y-6">
+            <div class="flex justify-between items-center">
+                <p>Welcome, <span id="user-display" class="font-bold text-blue-300"></span></p>
+                <button onclick="logout()" class="text-sm text-red-400 hover:underline">Lock & Logout</button>
+            </div>
+
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+                <h2 class="mb-3 font-semibold">Store New Credential</h2>
+                <div class="flex gap-2">
+                    <input id="new-key" type="text" placeholder="Key Name (e.g. AWS)" class="flex-1 p-2 bg-gray-700 rounded">
+                    <input id="new-val" type="text" placeholder="Secret Value" class="flex-1 p-2 bg-gray-700 rounded">
+                    <button onclick="addSecret()" class="bg-green-600 px-4 rounded hover:bg-green-700">+</button>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+                <table class="w-full text-left">
+                    <thead class="bg-gray-700 text-xs uppercase text-gray-400">
+                        <tr><th class="p-3">Credential Name</th><th class="p-3">Action</th></tr>
+                    </thead>
+                    <tbody id="secrets-list">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://127.0.0.1:8000";
+        let token = "";
+
+        async function login() {
+            const formData = new FormData();
+            formData.append('username', document.getElementById('username').value);
+            formData.append('password', document.getElementById('password').value);
+
+            const res = await fetch(`${API_URL}/login`, { method: 'POST', body: formData });
+            if (res.ok) {
+                const data = await res.json();
+                token = data.access_token;
+                showDashboard();
+                loadSecrets(); // <--- Now we load the data after login!
+            } else { alert("Login Failed"); }
+        }
+
+        async function loadSecrets() {
+            const res = await fetch(`${API_URL}/creds`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const secrets = await res.json();
+            const listElement = document.getElementById('secrets-list');
+            listElement.innerHTML = ""; // Clear existing
+
+            secrets.forEach(s => {
+                const row = `
+                    <tr class="border-b border-gray-700">
+                        <td class="p-3 font-medium">${s.key_name}</td>
+                        <td class="p-3">
+                            <button onclick="revealSecret('${s.key_name}')" class="text-blue-400 hover:text-blue-300 text-sm">Reveal</button>
+                            <span id="val-${s.key_name}" class="ml-4 text-green-400 font-mono"></span>
+                        </td>
+                    </tr>
+                `;
+                listElement.innerHTML += row;
+            });
+        }
+
+        async function revealSecret(keyName) {
+            const res = await fetch(`${API_URL}/creds/${keyName}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            // Display the decrypted value next to the key
+            document.getElementById(`val-${keyName}`).innerText = data.value;
+        }
+
+        function showDashboard() {
+            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('dashboard-section').classList.remove('hidden');
+            document.getElementById('user-display').innerText = document.getElementById('username').value;
+        }
+
+        async function addSecret() {
+            const payload = {
+                key_name: document.getElementById('new-key').value,
+                value: document.getElementById('new-val').value
+            };
+            const res = await fetch(`${API_URL}/creds`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                alert("Encrypted & Saved!");
+                loadSecrets(); // Refresh the list without reloading page
+            }
+        }
+
+        function logout() { location.reload(); }
+    </script>
+</body>
+</html>
