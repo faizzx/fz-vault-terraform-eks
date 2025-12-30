@@ -28,7 +28,7 @@ please review the code thoroughly before using it for production secrets.
 
 ---
 ### Architecture:
-![img.png](img.png)
+![architecture](docs/assets/architecture.png)
 
 ---
 #### Stacks with reason for selecting:
