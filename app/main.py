@@ -12,6 +12,8 @@ from jose import jwt # Used to decode the token
 import crypto
 from fastapi.middleware.cors import CORSMiddleware
 
+from fastapi.responses import FileResponse
+
 # This line creates the actual .db file and tables when the app starts
 models.Base.metadata.create_all(bind=engine)
 
@@ -25,9 +27,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
+@app.get("/health")
 def health_check():
     return {"status": "online", "project": "fz-creds-manager"}
+
+@app.get("/")
+def read_root():
+    # This assumes your folder structure is app/frontend/index.html
+    return FileResponse("frontend/index.html")
 
 # User sends JSON -> 2. FastAPI validates -> 3. App checks for duplicates $\rightarrow$
 # 4. Auth hashes password -> 5. DB saves user -> 6. User receives "Success".

@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fz-vault-app
+  namespace: default
+  labels:
+    app: fz-vault
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: fz-vault
+  template:
+    metadata:
+      labels:
+        app: fz-vault
+    spec:
+      containers:
+      - name: fz-vault-container
+        image: 815717105763.dkr.ecr.eu-west-1.amazonaws.com/fz-vault-app:latest
+        imagePullPolicy: Always
+        env:
+        - name: AWS_KMS_KEY_ID
+          value: "86babd8f-842e-4286-9fe4-74fa008c0d62"
+        - name: AWS_REGION
+          value: "eu-west-1"
+        ports:
+        - containerPort: 8000
+        # Basic Health Check
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 20
