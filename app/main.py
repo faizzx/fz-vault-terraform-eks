@@ -13,11 +13,16 @@ import crypto
 from fastapi.middleware.cors import CORSMiddleware
 
 from fastapi.responses import FileResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 
 # This line creates the actual .db file and tables when the app starts
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="fz-creds-manager")
+
+# Creates a hidden endpoint at /metrics, <localhost:8000/metrics>
+instrumentator = Instrumentator().instrument(app)
+instrumentator.expose(app, endpoint="/metrics")
 
 app.add_middleware(
     CORSMiddleware,

@@ -9,3 +9,4 @@ SQLAlchemy==2.0.45
 uvicorn
 python-multipart
 argon2-cffi
+prometheus-fastapi-instrumentator==7.0.0
