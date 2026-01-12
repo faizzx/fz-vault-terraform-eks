@@ -72,6 +72,17 @@ please review the code thoroughly before using it for production secrets.
 ### Architecture:
 ![architecture](docs/assets/architecture.png)
 
+### Screenshots of application:
+
+1. Queries DB and checks hashed password for authentication.
+![Login Screen](docs/assets/Login_screen.png)
+
+2. Stores key, value pairs on AWS KMS in encrypted format.
+![Storing key, value pairs](docs/assets/Add_Key_Value.png)
+
+3. Values are hidden by default, these can be revealed using 'reveal' button.
+![Reveal Value](docs/assets/Reveal_updated_secrets.png)
+
 ---
 #### Stacks with reason for selecting:
 - Backend API - FastAPI (Speed and documentation)
